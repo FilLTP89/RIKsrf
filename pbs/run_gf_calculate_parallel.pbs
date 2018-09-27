@@ -1,0 +1,23 @@
+#!/bin/bash
+
+#PBS -S /bin/bash
+#PBS -N DENEME_STEP3
+#PBS -o output_STEP3.txt
+#PBS -j oe
+#PBS -P omaha
+#PBS -l walltime=04:00:00
+#PBS -l select=9:ncpus=24:mpiprocs=24
+#PBS -m e -M elif.oral@centralesupelec.fr
+
+processors=216   #Number of parallel calculations (generally number of cores)
+
+
+cd $PBS_O_WORKDIR
+
+
+cat sources.dat | xargs -P$processors -n7 /workdir/orale/CODE_GALLOVIC/RIKsrf_FUSION_1ER_MARS/src-1Dsynthetics/src-dwn/gr_nez
+
+cat sources.dat | xargs -P$processors -n7 /workdir/orale/CODE_GALLOVIC/RIKsrf_FUSION_1ER_MARS/src-1Dsynthetics/src-dwn/cnv_nez
+
+
+
