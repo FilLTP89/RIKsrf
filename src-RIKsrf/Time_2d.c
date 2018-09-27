@@ -79,7 +79,7 @@
 #define    M_SQRT2     1.41421356237309504880
 #define    M_PI        3.14159265358979323846
 #ifdef     NO_IEEE_INFINITY
-#define    INFINITY    1.e+06
+//#define    INFINITY    1.e+06
 /* Note: INFINITY must be lower than square root of the highest   */
 /* acceptable float value (machine dependent) to prevent overflow */
 #define    ISINF(x)    ((x)>1.0e+06)
