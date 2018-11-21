@@ -42,6 +42,8 @@ PROGRAM KKstf
     !SOURCE PARAMETERS:
     REAL LF,WF,L,W,smL,smW,LWratio,M0,L0,vrsubfact,aparam,dt
     REAL,ALLOCATABLE,DIMENSION(:):: SRl,SRw,SRelem,SRmu,SRslip,SRmoment,SRstressdrop,SR,STF
+    ! [MODIFY]
+    REAL,ALLOCATABLE,DIMENSION(:):: outSRmoment
     INTEGER NSR,NT
     !others
     REAL ran2,dum,dumL,dumW,dumphi,dumr,totmoment,time,meanVR,ruptime,ruptimeSR,momentcorr
@@ -280,14 +282,17 @@ PROGRAM KKstf
 
     !Evaluating slip rates
     write(*,*)'Preparing and saving slip rates...'
-    allocate(sr(NT),stf(NT))
+    allocate(sr(NT),stf(NT),outSRmoment(NT))
     open(201,FILE='sr.dat')
+    ![MODIFY]
+    open(261,FILE='MomentRate.dat')
     totmoment=0.
     stf=0.
     do i=1,NSR
     sr=0.
+    outSRmoment = 0.0
     ruptimeSR=ruptimegen(i)    !Comment to go back to the version without rupt. vel. perturbations
-    !$OMP parallel do private(j,k,time,ruptime,dum) DEFAULT(SHARED)
+!$OMP parallel do private(j,k,time,ruptime,dum) DEFAULT(SHARED)
     do j=1,NT
     time=dt*(j-1)
     do k=1,SUBtot
@@ -305,17 +310,23 @@ PROGRAM KKstf
     endif
     enddo
     enddo
-    !$OMP end parallel do
+!$OMP end parallel do
     stf(:)=stf(:)+sr(:)*SRelem(i)*SRmu(i)
     totmoment=totmoment+sum(sr(:))*SRelem(i)*SRmu(i)*dt
-    do j=1,NT
-    !        write(201,*)dt*(j-1),sr(j)
-    write(201,*)sr(j)
-    enddo
-    write(201,*)
-    write(201,*)
+    outSRmoment = sr(:)*SRelem(i)*SRmu(i)
+    
+        do j=1,NT
+        !        write(201,*)dt*(j-1),sr(j)
+            write(201,*)sr(j)
+            write(261,*) dt*(j-1),outSRmoment(j)
+        enddo
+        write(201,*)
+        write(201,*)
+        write(261,*)
+        write(261,*)
     enddo
     close(201)
+    close(261)
     write(*,*)totmoment
     open(201,FILE='stf.dat')
     do i=1,NT
