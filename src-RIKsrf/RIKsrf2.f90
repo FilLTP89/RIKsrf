@@ -289,34 +289,35 @@ PROGRAM KKstf
     totmoment=0.
     stf=0.
     do i=1,NSR
-    sr=0.
-    outSRmoment = 0.0
-    ruptimeSR=ruptimegen(i)    !Comment to go back to the version without rupt. vel. perturbations
+        sr=0.
+        outSRmoment = 0.0
+        ruptimeSR=ruptimegen(i)    !Comment to go back to the version without rupt. vel. perturbations
 !$OMP parallel do private(j,k,time,ruptime,dum) DEFAULT(SHARED)
-    do j=1,NT
-    time=dt*(j-1)
-    do k=1,SUBtot
-    dum=SUBsize(k)**2-(SRl(i)-SUBposL(k))**2-(SRw(i)-SUBposW(k))**2
-    if(dum>0.)then
-        if(2.*SUBsize(k)>=L0)then    !subsources start from the hypocenter
-            ruptime=ruptimeSR
-        else
-            ruptime=SUBruptime(k)+sqrt((SRl(i)-SUBnuclL(k))**2+(SRw(i)-SUBnuclW(k))**2)/SUBmvr(k)
-            !ruptime=ruptimeSR    !Warning, uncomment if you want all subsources to start from the hypocenter
-        endif
-        if(time>ruptime.and.time<ruptime+SUBrisetime(k)*5.)then
-            sr(j)=sr(j)+sqrt(dum)*momentcorr*(time-ruptime)*exp(-(time-ruptime)/SUBrisetime(k)*PI)/(SUBrisetime(k)/PI)**2
-        endif
-    endif
-    enddo
-    enddo
+        do j=1,NT
+            time=dt*(j-1)
+            do k=1,SUBtot
+                dum=SUBsize(k)**2-(SRl(i)-SUBposL(k))**2-(SRw(i)-SUBposW(k))**2
+                if(dum>0.)then
+                    if(2.*SUBsize(k)>=L0)then    !subsources start from the hypocenter
+                        ruptime=ruptimeSR
+                    else
+                        ruptime=SUBruptime(k)+sqrt((SRl(i)-SUBnuclL(k))**2 &
+                            +(SRw(i)-SUBnuclW(k))**2)/SUBmvr(k)
+                        !ruptime=ruptimeSR    !Warning, uncomment if you want all subsources to start from the hypocenter
+                    endif
+                    if(time>ruptime.and.time<ruptime+SUBrisetime(k)*5.)then
+                        sr(j)=sr(j)+sqrt(dum)*momentcorr*(time-ruptime)*&
+                            exp(-(time-ruptime)/SUBrisetime(k)*PI)/(SUBrisetime(k)/PI)**2
+                    endif
+                endif
+            enddo
+        enddo
 !$OMP end parallel do
-    stf(:)=stf(:)+sr(:)*SRelem(i)*SRmu(i)
-    totmoment=totmoment+sum(sr(:))*SRelem(i)*SRmu(i)*dt
-    outSRmoment = sr(:)*SRelem(i)*SRmu(i)
+        stf(:)=stf(:)+sr(:)*SRelem(i)*SRmu(i)
+        totmoment=totmoment+sum(sr(:))*SRelem(i)*SRmu(i)*dt
+        outSRmoment = sr(:)*SRelem(i)*SRmu(i)
     
         do j=1,NT
-        !        write(201,*)dt*(j-1),sr(j)
             write(201,*)sr(j)
             write(261,*) dt*(j-1),outSRmoment(j)
         enddo
