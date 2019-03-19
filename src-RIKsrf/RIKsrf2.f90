@@ -318,7 +318,7 @@ PROGRAM KKstf
         outSRmoment = sr(:)*SRelem(i)*SRmu(i)
     
         do j=1,NT
-            write(201,*)sr(j)
+            write(201,*) dt*(j-1),sr(j)
             write(261,*) dt*(j-1),outSRmoment(j)
         enddo
         write(201,*)
