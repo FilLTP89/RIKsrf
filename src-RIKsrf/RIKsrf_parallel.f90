@@ -23,6 +23,7 @@ END MODULE
 PROGRAM KKstf
     USE ruptveloc
     USE crustaldat
+    USE mpi
     IMPLICIT NONE
     REAL,PARAMETER:: PI=3.1415926535
     INTEGER NL,NW
@@ -48,6 +49,10 @@ PROGRAM KKstf
     !others
     REAL ran2,dum,dumL,dumW,dumphi,dumr,totmoment,time,meanVR,ruptime,ruptimeSR,momentcorr
     INTEGER i,j,k,m,hits
+    INTEGER ierr
+
+    call MPI_INIT(ierr)
+
     read(5,*) inputfile
     open(101,FILE=trim(inputfile))
     write(6,*) "Reading"
@@ -334,6 +339,7 @@ PROGRAM KKstf
     write(201,*)dt*(i-1),stf(i)
     enddo
     write(*,*)'... done.'
+    call MPI_FINALIZE (ierr)
 
 END PROGRAM
 
