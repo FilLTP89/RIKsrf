@@ -1,81 +1,83 @@
-! Generator of slip rate functions for the
-! Ruiz Integral K-squared (RIK) source model
-! (i.e. modified model by Ruiz et al., 2011, see Gallovic, 2016)
+! generator of slip rate functions for the
+! ruiz integral k-squared (rik) source model
+! (i.e. modified model by ruiz et al., 2011, see gallovic, 2016)
 ! with random rupture front
-! Coded by Frantisek Gallovic (2016)
-! Version 2.0
+! coded by frantisek gallovic (2016)
+! version 2.0
 !-------------------------------------------------------------------------------
 
-MODULE ruptveloc
-    IMPLICIT NONE
-    INTEGER nlayers
-    REAL, ALLOCATABLE:: hvr(:),vr(:)   ! layer-top location (from bottom), rupture velocities inside layers
-    REAL hl,hw                         ! location of hypocenter
-END MODULE
+module ruptveloc
+    implicit none
+    integer nlayers
+    real, allocatable:: hvr(:),vr(:)   ! layer-top location (from bottom), rupture velocities inside layers
+    real hl,hw                         ! location of hypocenter
+end module
 
-MODULE crustaldat
-    IMPLICIT NONE
-    INTEGER ndepth
-    REAL,ALLOCATABLE,DIMENSION(:):: depth,vp,vs,rho
-    REAL hypodepth,dip
-END MODULE
+module crustaldat
+    implicit none
+    integer ndepth
+    real,allocatable,dimension(:):: depth,vp,vs,rho
+    real hypodepth,dip
+end module
 
-PROGRAM KKstf
-    USE ruptveloc
-    USE crustaldat
-    USE mpi
-    IMPLICIT NONE
-    REAL,PARAMETER:: PI=3.1415926535
-    INTEGER NL,NW
-    REAL mufix
-    !PDF for subsource position
-    INTEGER,PARAMETER:: pdfNL=2000,pdfNW=1000
-    REAL,ALLOCATABLE:: pdf2D(:,:),cpdf2D(:,:)
-    REAL pdfDL,pdfDW,pdfGaussL,pdfGaussW,pdfGaussS
-    REAL,ALLOCATABLE:: ruptimegen(:)
-    CHARACTER*256 filename,inputfile
-    INTEGER ml(2),pdfOption,fileNL,fileNW
-    !SUBSOURCE PARAMETERS:
-    INTEGER SRoption,SUBmax,SUBmin
-    REAL,ALLOCATABLE,DIMENSION(:):: SUBposL,SUBposW,SUBsize,SUBslip,SUBmoment,SUBrisetime,SUBmvr,SUBruptime,SUBnuclL,SUBnuclW
-    INTEGER,ALLOCATABLE,DIMENSION(:):: SUBno
-    INTEGER SUBtot,idum1,idum2
-    !SOURCE PARAMETERS:
-    REAL LF,WF,L,W,smL,smW,LWratio,M0,L0,vrsubfact,aparam,dt
-    REAL,ALLOCATABLE,DIMENSION(:):: SRl,SRw,SRelem,SRmu,SRslip,SRmoment,SRstressdrop,SR,STF
-    ! [MODIFY]
-    REAL,ALLOCATABLE,DIMENSION(:):: outSRmoment
-    INTEGER NSR,NT
+program kkstf
+    use ruptveloc
+    use crustaldat
+    use mpi
+    implicit none
+    real,parameter:: pi=3.1415926535
+    integer nl,nw
+    real mufix
+    !pdf for subsource position
+    integer,parameter:: pdfnl=2000,pdfnw=1000
+    real,allocatable:: pdf2d(:,:),cpdf2d(:,:)
+    real pdfdl,pdfdw,pdfgaussl,pdfgaussw,pdfgausss
+    real,allocatable:: ruptimegen(:)
+    character*256 filename,inputfile
+    integer ml(2),pdfoption,filenl,filenw
+    !subsource parameters:
+    integer sroption,submax,submin
+    real,allocatable,dimension(:):: subposl,subposw,subsize,subslip,submoment,subrisetime,submvr,subruptime,subnucll,subnuclw
+    integer,allocatable,dimension(:):: subno
+    integer subtot,idum1,idum2
+    !source parameters:
+    real lf,wf,l,w,sml,smw,lwratio,m0,l0,vrsubfact,aparam,dt
+    real,allocatable,dimension(:):: srl,srw,srelem,srmu,srslip,srmoment,srstressdrop,sr,stf
+    ! [modify]
+    real,allocatable,dimension(:):: outsrmoment
+    integer nsr,nt
     !others
-    REAL ran2,dum,dumL,dumW,dumphi,dumr,totmoment,time,meanVR,ruptime,ruptimeSR,momentcorr
-    INTEGER i,j,k,m,hits
-    INTEGER ierr
+    real ran2,dum,duml,dumw,dumphi,dumr,totmoment,time,meanvr,ruptime,ruptimesr,momentcorr
+    integer i,j,k,m,hits
+    integer ierr,rank,nprocs
 
     call MPI_INIT(ierr)
+    call MPI_COMM_RANK(MPI_COMM_WORLD,rank,ierr)
+    call MPI_COMM_SIZE(MPI_COMM_WORLD,nprocs,ierr)
 
     read(5,*) inputfile
-    open(101,FILE=trim(inputfile))
-    write(6,*) "Reading"
+    open(101,file=trim(inputfile))
+    write(6,*) "reading"
     read(101,*)
-    read(101,*)LF, WF
+    read(101,*)lf, wf
     read(101,*)
-    read(101,*)L, W, smL,smW
-    if(smL+L>LF.or.smW+W>WF)then
-        write(*,*)'Strong-motion area exceeds the fault size!'
+    read(101,*)l, w, sml,smw
+    if(sml+l>lf.or.smw+w>wf)then
+        write(*,*)'strong-motion area exceeds the fault size!'
         stop
     endif
     read(101,*)
-    read(101,*)M0
+    read(101,*)m0
     read(101,*)
-    read(101,*)SRoption
-    if(SRoption==1)then
-        read(101,*)NL,NW,mufix
-        NSR=NL*NW
-        if(mufix==0.)CALL read_crustaldat()
-    elseif(SRoption==2)then
-        read(101,*)NL,NW,NSR
+    read(101,*)sroption
+    if(sroption==1)then
+        read(101,*)nl,nw,mufix
+        nsr=nl*nw
+        if(mufix==0.)call read_crustaldat()
+    elseif(sroption==2)then
+        read(101,*)nl,nw,nsr
     else
-        write(*,*)'Wrong SRoption!'
+        write(*,*)'wrong sroption!'
         stop
     endif
     read(101,*)
@@ -83,17 +85,17 @@ PROGRAM KKstf
     read(101,*)
     read(101,*)hypodepth,dip
     read(101,*)
-    read(101,*)L0,vrsubfact,aparam
+    read(101,*)l0,vrsubfact,aparam
     read(101,*)
-    read(101,*)SUBMIN,SUBMAX
+    read(101,*)submin,submax
     read(101,*)
-    read(101,*)pdfOption
-    if(pdfOption==2)read(101,*)pdfGaussL,pdfGaussW,pdfGaussS
-    if(pdfOption==3)read(101,*)fileNL,fileNW,filename
+    read(101,*)pdfoption
+    if(pdfoption==2)read(101,*)pdfgaussl,pdfgaussw,pdfgausss
+    if(pdfoption==3)read(101,*)filenl,filenw,filename
     read(101,*)
     read(101,*)idum1,idum2
     read(101,*)
-    read(101,*)dt,NT
+    read(101,*)dt,nt
     read(101,*)
     read(101,*)nlayers
     if(nlayers>0)then
@@ -107,42 +109,44 @@ PROGRAM KKstf
         nlayers=ndepth
         allocate(hvr(nlayers),vr(nlayers))
         do i=1,nlayers
-        hvr(i)=(hypodepth-depth(nlayers-i+1))/sin(dip/180.d0*PI)+hw
+        hvr(i)=(hypodepth-depth(nlayers-i+1))/sin(dip/180.d0*pi)+hw
         vr(i)=vs(nlayers-i+1)*dum
         enddo
     endif
     do i=2,nlayers
     if(vr(i)>vr(i-1))then
-        write(*,*)'ERROR! VR should decrease upwards!'
+        write(*,*)'error! vr should decrease upwards!'
     endif
     enddo
-    if(hvr(nlayers)<WF)then
-        write(*,*)'ERROR! Definition of VR does not cover the whole fault!'
+    if(hvr(nlayers)<wf)then
+        write(*,*)'error! definition of vr does not cover the whole fault!'
         stop
     endif
     close(101)
 
-    open(232,FILE='nucleationpoint.dat')
+    open(232,file='nucleationpoint.dat')
     write(232,*)hl,hw
     close(232)
-    LWratio=L/W
-    L0=L0*W
-
-    !Preparing PDF for distribution of subsources
-    write(*,*)'Preparing PDF for subsource distribution...'
-    ALLOCATE(pdf2D(pdfNL,pdfNW),cpdf2D(pdfNL,pdfNW))
-    CALL fillpdf(pdfNL,pdfNW,LF,WF,L,W,smL,smW,pdf2D,cpdf2D,pdfOption,filename,fileNL,fileNW,pdfGaussL,pdfGaussW,pdfGaussS)
-    pdfDL=LF/real(pdfNL)
-    pdfDW=WF/real(pdfNW)
+    lwratio=l/w
+    l0=l0*w
+    
+    ! distribute grid point over processors
+    call splitgrid(rank,NL,NW)
+    !preparing pdf for distribution of subsources
+    write(*,*)'preparing pdf for subsource distribution...'
+    allocate(pdf2d(pdfnl,pdfnw),cpdf2d(pdfnl,pdfnw))
+    call fillpdf(pdfnl,pdfnw,lf,wf,l,w,sml,smw,pdf2d,cpdf2d,pdfoption,filename,filenl,filenw,pdfgaussl,pdfgaussw,pdfgausss)
+    pdfdl=lf/real(pdfnl)
+    pdfdw=wf/real(pdfnw)
     write(*,*)'... done.'
 
-    !Calculate and read random variations of rupture time
-    CALL randomruptvel(LF,WF,NL,NW,hl,hw,idum2)
-    ALLOCATE(ruptimegen(NW*NL))
-    open(232,FILE='ruptimegen.txt')
+    !calculate and read random variations of rupture time
+    call randomruptvel(lf,wf,nl,nw,hl,hw,idum2)
+    allocate(ruptimegen(nw*nl))
+    open(232,file='ruptimegen.txt')
     k=0
-    do j=1,NW
-    do i=1,NL
+    do j=1,nw
+    do i=1,nl
     k=k+1
     read(232,*)dum,dum,ruptimegen(k)
     enddo
@@ -150,181 +154,181 @@ PROGRAM KKstf
     enddo
     close(232)
 
-    !Reading location of the slip rate points
-    ALLOCATE(SRl(NSR),SRw(NSR),SRelem(NSR),SRmu(NSR),SRslip(NSR),SRmoment(NSR),SRstressdrop(NSR))
-    if(SRoption==1)then
-        SRelem=LF*WF/real(NL*NW)
+    !reading location of the slip rate points
+    allocate(srl(nsr),srw(nsr),srelem(nsr),srmu(nsr),srslip(nsr),srmoment(nsr),srstressdrop(nsr))
+    if(sroption==1)then
+        srelem=lf*wf/real(nl*nw)
         k=0
-        do j=1,NW
-        do i=1,NL
+        do j=1,nw
+        do i=1,nl
         k=k+1
-        SRl(k)=LF/real(NL)*(real(i)-.5)
-        SRw(k)=WF/real(NW)*(real(j)-.5)
+        srl(k)=lf/real(nl)*(real(i)-.5)
+        srw(k)=wf/real(nw)*(real(j)-.5)
         enddo
         enddo
         if(mufix>0.)then
-            SRmu=mufix
+            srmu=mufix
         else
-            do k=1,NSR
-            dum=(hypodepth+(hw-SRw(k))*sin(dip/180.d0*PI))
+            do k=1,nsr
+            dum=(hypodepth+(hw-srw(k))*sin(dip/180.d0*pi))
             if(dum>depth(ndepth))then
-                SRmu(k)=rho(ndepth)*vs(ndepth)**2*1.d9
+                srmu(k)=rho(ndepth)*vs(ndepth)**2*1.d9
             else
                 do j=1,ndepth
                 if(dum<depth(j))exit
                 enddo
-                SRmu(k)=rho(j-1)*vs(j-1)**2*1.d9
+                srmu(k)=rho(j-1)*vs(j-1)**2*1.d9
             endif  
             enddo
         endif
     else
-        open(101,FILE='srloc.dat')
-        do i=1,NSR
-        read(101,*)SRl(i),SRw(i),SRelem(i),SRmu(i)
+        open(101,file='srloc.dat')
+        do i=1,nsr
+        read(101,*)srl(i),srw(i),srelem(i),srmu(i)
         enddo
     endif
-    SRelem=SRelem*1.e6
+    srelem=srelem*1.e6
 
-    !Static subsource parameters
-    write(*,*)'Preparing distribution and parameters of subsources...'
-    ALLOCATE(SUBno(SUBmax))
-    SUBno=0
-    do i=SUBmin,SUBmax
-    SUBno(i)=int(float(2*i-1)*LWratio)
+    !static subsource parameters
+    write(*,*)'preparing distribution and parameters of subsources...'
+    allocate(subno(submax))
+    subno=0
+    do i=submin,submax
+    subno(i)=int(float(2*i-1)*lwratio)
     enddo
-    SUBtot=sum(SUBno)
-    ALLOCATE(SUBposL(SUBtot),SUBposW(SUBtot),SUBsize(SUBtot),SUBslip(SUBtot),&
-        SUBmoment(SUBtot),SUBrisetime(SUBtot))
-    ALLOCATE(SUBnuclL(SUBtot),SUBnuclW(SUBtot),SUBmvr(SUBtot),SUBruptime(SUBtot))
+    subtot=sum(subno)
+    allocate(subposl(subtot),subposw(subtot),subsize(subtot),subslip(subtot),&
+        submoment(subtot),subrisetime(subtot))
+    allocate(subnucll(subtot),subnuclw(subtot),submvr(subtot),subruptime(subtot))
     k=0
-    SRslip=0.
-    SRmoment=0.
-    SRstressdrop=0.
-    SUBslip=0.
-    SUBmoment=0.
-    do i=SUBmin,SUBmax
-    do j=1,SUBno(i)
+    srslip=0.
+    srmoment=0.
+    srstressdrop=0.
+    subslip=0.
+    submoment=0.
+    do i=submin,submax
+    do j=1,subno(i)
     k=k+1
-    SUBsize(k)=W/float(i)/2.   !radius
+    subsize(k)=w/float(i)/2.   !radius
 
-    ! Locating the subsource according to the PDF
+    ! locating the subsource according to the pdf
     do
-    !          if(k==1.and.pdfOption.ne.1)then   !Put the largest subsource at the position of the PDF maximum
-    !            ml=maxloc(pdf2D(:,:))
+    !          if(k==1.and.pdfoption.ne.1)then   !put the largest subsource at the position of the pdf maximum
+    !            ml=maxloc(pdf2d(:,:))
     !          else
-    ml=minloc(abs(cpdf2D(:,:)-ran2(idum1)))
+    ml=minloc(abs(cpdf2d(:,:)-ran2(idum1)))
     !          endif
-    SUBposL(k)=(real(ml(1))-.5)*pdfDL
+    subposl(k)=(real(ml(1))-.5)*pdfdl
 
-    if(SUBmin==1.and.i==1)then
-        SUBposW(k)=W/2.
-        if(SUBposL(k)-SUBsize(k)>=0..and.SUBposL(k)+SUBsize(k)<=LF)exit
+    if(submin==1.and.i==1)then
+        subposw(k)=w/2.
+        if(subposl(k)-subsize(k)>=0..and.subposl(k)+subsize(k)<=lf)exit
     else
-        SUBposW(k)=(real(ml(2))-.5)*pdfDW
-        if(SUBposL(k)-SUBsize(k)>=0..and.SUBposW(k)-SUBsize(k)>=0..and.&
-            SUBposL(k)+SUBsize(k)<=LF.and.SUBposW(k)+SUBsize(k)<=WF)exit
+        subposw(k)=(real(ml(2))-.5)*pdfdw
+        if(subposl(k)-subsize(k)>=0..and.subposw(k)-subsize(k)>=0..and.&
+            subposl(k)+subsize(k)<=lf.and.subposw(k)+subsize(k)<=wf)exit
     endif
     enddo
 
-    do m=1,NSR
-    dum=SUBsize(k)**2-(SRl(m)-SUBposL(k))**2-(SRw(m)-SUBposW(k))**2
+    do m=1,nsr
+    dum=subsize(k)**2-(srl(m)-subposl(k))**2-(srw(m)-subposw(k))**2
     if(dum>0.)then
-        SUBmoment(k)=SUBmoment(k)+sqrt(dum)*SRelem(m)*SRmu(m)
-        SUBslip(k)=SUBslip(k)+sqrt(dum)
-        SRmoment(m)=SRmoment(m)+sqrt(dum)*SRelem(m)*SRmu(m)
-        SRslip(m)=SRslip(m)+sqrt(dum)
-        SRstressdrop(m)=SRstressdrop(m)-SRmu(m)/24.*7.*PI/1000. !(oprava na to, ze se pracuje se skluzem v km)
+        submoment(k)=submoment(k)+sqrt(dum)*srelem(m)*srmu(m)
+        subslip(k)=subslip(k)+sqrt(dum)
+        srmoment(m)=srmoment(m)+sqrt(dum)*srelem(m)*srmu(m)
+        srslip(m)=srslip(m)+sqrt(dum)
+        srstressdrop(m)=srstressdrop(m)-srmu(m)/24.*7.*pi/1000. !(oprava na to, ze se pracuje se skluzem v km)
     endif
     enddo
     enddo
     enddo
-    totmoment=sum(SRmoment(:))
-    momentcorr=M0/totmoment
+    totmoment=sum(srmoment(:))
+    momentcorr=m0/totmoment
     write(*,*)totmoment*momentcorr
-    SUBslip=SUBslip*momentcorr
-    SUBmoment=SUBmoment*momentcorr
-    SRslip=SRslip*momentcorr
-    SRmoment=SRmoment*momentcorr
-    SRstressdrop=SRstressdrop*momentcorr
+    subslip=subslip*momentcorr
+    submoment=submoment*momentcorr
+    srslip=srslip*momentcorr
+    srmoment=srmoment*momentcorr
+    srstressdrop=srstressdrop*momentcorr
 
-    open(201,FILE='slipdistribution.dat')
-    do i=1,NSR
-    write(201,'(10E13.5)')SRl(i),SRw(i),SRslip(i),SRmoment(i),ruptimegen(i),SRstressdrop(i)
+    open(201,file='slipdistribution.dat')
+    do i=1,nsr
+    write(201,'(10e13.5)')srl(i),srw(i),srslip(i),srmoment(i),ruptimegen(i),srstressdrop(i)
     enddo
     close(201)
-    open(201,FILE='slipdistribution.gnuplot.dat')
-    do i=1,NW
-    write(201,'(1000E13.5)')SRslip((i-1)*NL+1:i*NL)
+    open(201,file='slipdistribution.gnuplot.dat')
+    do i=1,nw
+    write(201,'(1000e13.5)')srslip((i-1)*nl+1:i*nl)
     enddo
     write(201,*);write(201,*)
-    do i=1,NW
-    write(201,'(1000E13.5)')SRstressdrop((i-1)*NL+1:i*NL)
+    do i=1,nw
+    write(201,'(1000e13.5)')srstressdrop((i-1)*nl+1:i*nl)
     enddo
     close(201)
 
-    !Slip rates on subsources
-    do k=1,SUBtot
-    SUBmvr(k)=meanVR(SUBposL(k),SUBposW(k),SUBsize(k))
-    if(2.*SUBsize(k)>=L0)then    !subsources start from the hypocenter
-        SUBrisetime(k)=aparam*L0/SUBmvr(k)
+    !slip rates on subsources
+    do k=1,subtot
+    submvr(k)=meanvr(subposl(k),subposw(k),subsize(k))
+    if(2.*subsize(k)>=l0)then    !subsources start from the hypocenter
+        subrisetime(k)=aparam*l0/submvr(k)
     else                         !subsources start from a random point
-        dumphi=ran2(idum1)*2.*pi;dumr=sqrt(ran2(idum1))*SUBsize(k)
-        dumL=dumr*cos(dumphi);dumW=dumr*sin(dumphi)
-        SUBnuclL(k)=dumL+SUBposL(k)
-        SUBnuclW(k)=dumW+SUBposW(k)
-        SUBruptime(k)=ruptimegen(int(SUBnuclW(k)/W*float(NW-1))*NL+int(SUBnuclL(k)/L*float(NL-1))+1)
-        SUBmvr(k)=SUBmvr(k)*vrsubfact
-        SUBrisetime(k)=aparam*2.*SUBsize(k)/SUBmvr(k)
+        dumphi=ran2(idum1)*2.*pi;dumr=sqrt(ran2(idum1))*subsize(k)
+        duml=dumr*cos(dumphi);dumw=dumr*sin(dumphi)
+        subnucll(k)=duml+subposl(k)
+        subnuclw(k)=dumw+subposw(k)
+        subruptime(k)=ruptimegen(int(subnuclw(k)/w*float(nw-1))*nl+int(subnucll(k)/l*float(nl-1))+1)
+        submvr(k)=submvr(k)*vrsubfact
+        subrisetime(k)=aparam*2.*subsize(k)/submvr(k)
     endif
     enddo
     write(*,*)'... done.'
 
-    open(201,FILE='subsources.dat')
-    do k=1,SUBtot
-    write(201,'(10E13.5)')SUBposL(k),SUBposW(k),SUBsize(k),SUBmoment(k),SUBruptime(k),SUBrisetime(SUBtot),SUBmvr(SUBtot)
+    open(201,file='subsources.dat')
+    do k=1,subtot
+    write(201,'(10e13.5)')subposl(k),subposw(k),subsize(k),submoment(k),subruptime(k),subrisetime(subtot),submvr(subtot)
     enddo
     close(201)
 
-    !Evaluating slip rates
-    write(*,*)'Preparing and saving slip rates...'
-    allocate(sr(NT),stf(NT),outSRmoment(NT))
-    open(201,FILE='sr.dat')
-    ![MODIFY]
-    open(261,FILE='MomentRate.dat')
+    !evaluating slip rates
+    write(*,*)'preparing and saving slip rates...'
+    allocate(sr(nt),stf(nt),outsrmoment(nt))
+    open(201,file='sr.dat')
+    ![modify]
+    open(261,file='momentrate.dat')
     totmoment=0.
     stf=0.
-    do i=1,NSR
+    do i=1,nsr
         sr=0.
-        outSRmoment = 0.0
-        ruptimeSR=ruptimegen(i)    !Comment to go back to the version without rupt. vel. perturbations
-!$OMP parallel do private(j,k,time,ruptime,dum) DEFAULT(SHARED)
-        do j=1,NT
+        outsrmoment = 0.0
+        ruptimesr=ruptimegen(i)    !comment to go back to the version without rupt. vel. perturbations
+!$omp parallel do private(j,k,time,ruptime,dum) default(shared)
+        do j=1,nt
             time=dt*(j-1)
-            do k=1,SUBtot
-                dum=SUBsize(k)**2-(SRl(i)-SUBposL(k))**2-(SRw(i)-SUBposW(k))**2
+            do k=1,subtot
+                dum=subsize(k)**2-(srl(i)-subposl(k))**2-(srw(i)-subposw(k))**2
                 if(dum>0.)then
-                    if(2.*SUBsize(k)>=L0)then    !subsources start from the hypocenter
-                        ruptime=ruptimeSR
+                    if(2.*subsize(k)>=l0)then    !subsources start from the hypocenter
+                        ruptime=ruptimesr
                     else
-                        ruptime=SUBruptime(k)+sqrt((SRl(i)-SUBnuclL(k))**2 &
-                            +(SRw(i)-SUBnuclW(k))**2)/SUBmvr(k)
-                        !ruptime=ruptimeSR    !Warning, uncomment if you want all subsources to start from the hypocenter
+                        ruptime=subruptime(k)+sqrt((srl(i)-subnucll(k))**2 &
+                            +(srw(i)-subnuclw(k))**2)/submvr(k)
+                        !ruptime=ruptimesr    !warning, uncomment if you want all subsources to start from the hypocenter
                     endif
-                    if(time>ruptime.and.time<ruptime+SUBrisetime(k)*5.)then
+                    if(time>ruptime.and.time<ruptime+subrisetime(k)*5.)then
                         sr(j)=sr(j)+sqrt(dum)*momentcorr*(time-ruptime)*&
-                            exp(-(time-ruptime)/SUBrisetime(k)*PI)/(SUBrisetime(k)/PI)**2
+                            exp(-(time-ruptime)/subrisetime(k)*pi)/(subrisetime(k)/pi)**2
                     endif
                 endif
             enddo
         enddo
-!$OMP end parallel do
-        stf(:)=stf(:)+sr(:)*SRelem(i)*SRmu(i)
-        totmoment=totmoment+sum(sr(:))*SRelem(i)*SRmu(i)*dt
-        outSRmoment = sr(:)*SRelem(i)*SRmu(i)
+!$omp end parallel do
+        stf(:)=stf(:)+sr(:)*srelem(i)*srmu(i)
+        totmoment=totmoment+sum(sr(:))*srelem(i)*srmu(i)*dt
+        outsrmoment = sr(:)*srelem(i)*srmu(i)
     
-        do j=1,NT
+        do j=1,nt
             write(201,*) dt*(j-1),sr(j)
-            write(261,*) dt*(j-1),outSRmoment(j)
+            write(261,*) dt*(j-1),outsrmoment(j)
         enddo
         write(201,*)
         write(201,*)
@@ -334,89 +338,89 @@ PROGRAM KKstf
     close(201)
     close(261)
     write(*,*)totmoment
-    open(201,FILE='stf.dat')
-    do i=1,NT
+    open(201,file='stf.dat')
+    do i=1,nt
     write(201,*)dt*(i-1),stf(i)
     enddo
     write(*,*)'... done.'
-    call MPI_FINALIZE (ierr)
+    call mpi_finalize (ierr)
 
-END PROGRAM
+end program
 
 
-SUBROUTINE fillpdf(pdfNL,pdfNW,LF,WF,L,W,smL,smW,pdf2D,cpdf2D,pdfOption,filename,fileNL,fileNW,pdfGaussL,pdfGaussW,pdfGaussS)  ! creates pdf and cumulative pdf for subsource distribution
-    IMPLICIT NONE
-    INTEGER pdfNL,pdfNW,pdfOption
-    REAL pdf2D(pdfNL,pdfNW),cpdf2D(pdfNL,pdfNW)
-    REAL LF,WF,L,W,smL,smW,pdfGaussL,pdfGaussW,pdfGaussS
-    CHARACTER*256 filename
-    INTEGER i,j,k,fileNL,fileNW
-    REAL cumul,pdfDL,pdfDW,slipDL,slipDW
-    REAL,ALLOCATABLE:: slip(:,:)
-    INTEGER pifrom,pito,pjfrom,pjto
-    open(229,FILE='strongmotionarea.dat')
-    write(229,*)smL,smW;write(229,*)smL+L,smW;write(229,*)smL+L,smW+W;write(229,*)smL,smW+W;write(229,*)smL,smW
+subroutine fillpdf(pdfnl,pdfnw,lf,wf,l,w,sml,smw,pdf2d,cpdf2d,pdfoption,filename,filenl,filenw,pdfgaussl,pdfgaussw,pdfgausss)  ! creates pdf and cumulative pdf for subsource distribution
+    implicit none
+    integer pdfnl,pdfnw,pdfoption
+    real pdf2d(pdfnl,pdfnw),cpdf2d(pdfnl,pdfnw)
+    real lf,wf,l,w,sml,smw,pdfgaussl,pdfgaussw,pdfgausss
+    character*256 filename
+    integer i,j,k,filenl,filenw
+    real cumul,pdfdl,pdfdw,slipdl,slipdw
+    real,allocatable:: slip(:,:)
+    integer pifrom,pito,pjfrom,pjto
+    open(229,file='strongmotionarea.dat')
+    write(229,*)sml,smw;write(229,*)sml+l,smw;write(229,*)sml+l,smw+w;write(229,*)sml,smw+w;write(229,*)sml,smw
     close(229)
-    pdfDL=LF/real(pdfNL)
-    pdfDW=WF/real(pdfNW)
-    pifrom=int(smL/pdfDL)+1
-    pito=int((smL+L)/pdfDL+0.999)
-    pjfrom=int(smW/pdfDW)+1
-    pjto=int((smW+W)/pdfDW+0.999)
-    pdf2D(:,:)=0.
-    SELECT CASE(pdfOption)
-    CASE(1)
-        write(*,*)'Uniform spatial PDF for subsources'
-        pdf2D(pifrom:pito,pjfrom:pjto)=1.
-    CASE(2)
-        write(*,*)'Gaussian PDF for subsources'
+    pdfdl=lf/real(pdfnl)
+    pdfdw=wf/real(pdfnw)
+    pifrom=int(sml/pdfdl)+1
+    pito=int((sml+l)/pdfdl+0.999)
+    pjfrom=int(smw/pdfdw)+1
+    pjto=int((smw+w)/pdfdw+0.999)
+    pdf2d(:,:)=0.
+    select case(pdfoption)
+    case(1)
+        write(*,*)'uniform spatial pdf for subsources'
+        pdf2d(pifrom:pito,pjfrom:pjto)=1.
+    case(2)
+        write(*,*)'gaussian pdf for subsources'
         do j=pjfrom,pjto
         do i=pifrom,pito
-        pdf2D(i,j)=exp(-.5*((((real(i)-.5)*pdfDL-pdfGaussL)**2+((real(j)-.5)*pdfDL-pdfGaussW)**2)/pdfGaussS**2)**2)
+        pdf2d(i,j)=exp(-.5*((((real(i)-.5)*pdfdl-pdfgaussl)**2+((real(j)-.5)*pdfdl-pdfgaussw)**2)/pdfgausss**2)**2)
         enddo
         enddo
-    CASE(3)
-        write(*,*)'Reading spatial PDF from',trim(filename)
-        allocate(slip(fileNL,fileNW))
-        write(*,*)'fileNL',fileNL
-        write(*,*)'fileNW',fileNW
-        slipDL=LF/real(fileNL)
-        slipDW=WF/real(fileNW)
-        open(329,FILE=trim(filename))
-        do j=1,fileNW
-        read(329,*)(slip(i,j),i=1,fileNL)
+    case(3)
+        write(*,*)'reading spatial pdf from',trim(filename)
+        allocate(slip(filenl,filenw))
+        write(*,*)'filenl',filenl
+        write(*,*)'filenw',filenw
+        slipdl=lf/real(filenl)
+        slipdw=wf/real(filenw)
+        open(329,file=trim(filename))
+        do j=1,filenw
+        read(329,*)(slip(i,j),i=1,filenl)
         enddo
         close(329)
         do j=pjfrom,pjto
         do i=pifrom,pito
-        pdf2D(i,j)=slip(int(pdfDL/slipDL*(float(i)-0.5))+1,int(pdfDW/slipDW*(float(j)-0.5))+1)
+        pdf2d(i,j)=slip(int(pdfdl/slipdl*(float(i)-0.5))+1,int(pdfdw/slipdw*(float(j)-0.5))+1)
         enddo
         enddo
         deallocate(slip)
-    CASE DEFAULT
-        write(*,*)'Wrong pdfOption!'
+    case default
+        write(*,*)'wrong pdfoption!'
         stop
-    END SELECT
+    end select
     !normalize and calculate cumulative distribution
     k=0
     cumul=0
-    do j=1,pdfNW
-    do i=1,pdfNL
+    do j=1,pdfnw
+    do i=1,pdfnl
     k=k+1
-    cumul=cumul+pdf2D(i,j)
-    cpdf2D(i,j)=cumul
+    cumul=cumul+pdf2d(i,j)
+    cpdf2d(i,j)=cumul
     enddo
     enddo
-    pdf2D=pdf2D/cumul
-    cpdf2D=cpdf2D/cumul
-END SUBROUTINE
+    pdf2d=pdf2d/cumul
+    cpdf2d=cpdf2d/cumul
+end subroutine
 
 
-FUNCTION meanVR(x,y,r)   !calculate mean rupture velocity (just slowness mean over subsource depth extent)
-    USE ruptveloc
-    IMPLICIT NONE
-    REAL meanVR,x,y,r
-    INTEGER itop,ibottom,i
+function meanvr(x,y,r)   !calculate mean rupture velocity (just slowness mean over subsource depth extent)
+    use ruptveloc
+    implicit none
+    real meanvr,x,y,r
+    integer itop,ibottom,i
     itop=1
     ibottom=1
     do i=1,nlayers
@@ -424,25 +428,25 @@ FUNCTION meanVR(x,y,r)   !calculate mean rupture velocity (just slowness mean ov
     if(hvr(i)<y-r) ibottom=i+1
     enddo
     if(itop==ibottom)then    ! stf point in the layer with the hypocenter
-        meanVR=VR(itop)
+        meanvr=vr(itop)
     else
-        meanVR=(y+r-hvr(itop-1))/vr(itop)+(hvr(ibottom)-y+r)/vr(ibottom)
+        meanvr=(y+r-hvr(itop-1))/vr(itop)+(hvr(ibottom)-y+r)/vr(ibottom)
         do i=ibottom+1,itop-1
-        meanVR=meanVR+(hvr(i)-hvr(i-1))/vr(i)
+        meanvr=meanvr+(hvr(i)-hvr(i-1))/vr(i)
         enddo
-        meanVR=2.*r/meanVR
+        meanvr=2.*r/meanvr
     endif
-    END
+    end
 
 
-    ! Using crustal.dat
-    SUBROUTINE read_crustaldat()
-        USE crustaldat
-        IMPLICIT NONE
-        INTEGER i
+    ! using crustal.dat
+    subroutine read_crustaldat()
+        use crustaldat
+        implicit none
+        integer i
         if(allocated(depth))return
-        open(10,FILE='crustal.dat',ACTION='READ',STATUS='OLD')
-        write(*,*)'  (Using mu values from file crustal.dat)'
+        open(10,file='crustal.dat',action='read',status='old')
+        write(*,*)'  (using mu values from file crustal.dat)'
         read(10,*)
         read(10,*)
         read(10,*)ndepth
@@ -453,217 +457,217 @@ FUNCTION meanVR(x,y,r)   !calculate mean rupture velocity (just slowness mean ov
         read(10,*)depth(i),vp(i),vs(i),rho(i)
         enddo
         close(10)
-        END
+        end
 
 
-        SUBROUTINE randomruptvel(L,W,NX,NY,epicx,epicy,idum)
-            ! Random rupture velocity k^-2 generator for
-            ! Ruiz Integral K-squared (RIK) source model
-            ! Coded by Frantisek Gallovic (2014)
+        subroutine randomruptvel(l,w,nx,ny,epicx,epicy,idum)
+            ! random rupture velocity k^-2 generator for
+            ! ruiz integral k-squared (rik) source model
+            ! coded by frantisek gallovic (2014)
             !-------------------------------------------------------------------------------
-            ! COORDINATE SYSTEM on the fault:
-            ! The origin is in the left top corner of the fault while the strike direction is to the right,
+            ! coordinate system on the fault:
+            ! the origin is in the left top corner of the fault while the strike direction is to the right,
             ! the x axes is positive to the strike direction and
             ! the y axes is positive in the down-dip direction.
-            USE ruptveloc
-            IMPLICIT NONE
-            REAL*8,PARAMETER:: PI=3.1415926535,vars=0.25d0  !maximum variations in percents
-            REAL*8,PARAMETER:: UpperK=1.d0
-            COMPLEX*16,ALLOCATABLE:: speq1(:),AC(:,:),speqd(:)
-            REAL*8,ALLOCATABLE:: A(:,:),AA(:,:),C(:,:),D(:,:),D1(:,:)
-            INTEGER i,j,k,NXX,NYY,M,N,FNN,FNM,NX,NY
-            REAL L,W,epicx,epicy
-            REAL*8 dkx,dky,kx,ky
-            REAL*8 dxout,dyout,dd
-            REAL*8 cx,cy,ms,dum,NyqL,NyqW,NLW,krad,corner,KCx,KCy
-            REAL ran2
-            INTEGER ndepth1,idum,pdfOption
+            use ruptveloc
+            implicit none
+            real*8,parameter:: pi=3.1415926535,vars=0.25d0  !maximum variations in percents
+            real*8,parameter:: upperk=1.d0
+            complex*16,allocatable:: speq1(:),ac(:,:),speqd(:)
+            real*8,allocatable:: a(:,:),aa(:,:),c(:,:),d(:,:),d1(:,:)
+            integer i,j,k,nxx,nyy,m,n,fnn,fnm,nx,ny
+            real l,w,epicx,epicy
+            real*8 dkx,dky,kx,ky
+            real*8 dxout,dyout,dd
+            real*8 cx,cy,ms,dum,nyql,nyqw,nlw,krad,corner,kcx,kcy
+            real ran2
+            integer ndepth1,idum,pdfoption
             integer*4 :: nnx, nnz, iostat, ipoint
-            integer*4, external :: Time_2d
+            integer*4, external :: time_2d
             real*4 xg, zg, eps_init
             real*4, allocatable:: hs(:), t_rupt(:)
-            REAL*8, allocatable:: xintrpl(:),tintrpl(:),yintrpl(:),xspln(:),yspln(:)
+            real*8, allocatable:: xintrpl(:),tintrpl(:),yintrpl(:),xspln(:),yspln(:)
 
-            write(*,*)'Preparing rupture time variations with rupture velocity sigma ',vars
+            write(*,*)'preparing rupture time variations with rupture velocity sigma ',vars
 
-            !Schvalne dd, protoze se diskretizuje na ridsi siti a pak se interpoluje
-            M=2**int(log(dble(NX))/log(2.d0)+1.d0)
-            N=2**int(log(dble(NY))/log(2.d0)+1.d0)
-            dxout=L/dble(NX)
-            dyout=W/dble(NY)
-            dd=min(L/dble(NX),W/dble(NY))
-            11  if(dd*M<L)then
-                M=M*2
+            !schvalne dd, protoze se diskretizuje na ridsi siti a pak se interpoluje
+            m=2**int(log(dble(nx))/log(2.d0)+1.d0)
+            n=2**int(log(dble(ny))/log(2.d0)+1.d0)
+            dxout=l/dble(nx)
+            dyout=w/dble(ny)
+            dd=min(l/dble(nx),w/dble(ny))
+            11  if(dd*m<l)then
+                m=m*2
                 goto 11
             endif
-            12  if(dd*N<W)then
-                N=N*2
+            12  if(dd*n<w)then
+                n=n*2
                 goto 12
             endif
-            FNN=N/2+1;FNM=M/2+1
+            fnn=n/2+1;fnm=m/2+1
 
-            ALLOCATE(speq1(N),AC(M/2,N),speqd(N),A(M,N),AA(M,N),C(M,N),D(NX,NY),D1(M,NY))
-            ALLOCATE(hs(M*N),t_rupt(M*N))
-            ALLOCATE(xintrpl(M),xspln(M),yintrpl(N),tintrpl(N),yspln(N))
+            allocate(speq1(n),ac(m/2,n),speqd(n),a(m,n),aa(m,n),c(m,n),d(nx,ny),d1(m,ny))
+            allocate(hs(m*n),t_rupt(m*n))
+            allocate(xintrpl(m),xspln(m),yintrpl(n),tintrpl(n),yspln(n))
 
-            dkx=1./dd/real(M);dky=1./dd/real(N)
-            KCx=UpperK/L        !Corner wave-number for along-strike direction
-            KCy=UpperK/W        !Corner wave-number for down-dip direction
-            NyqL=dkx;NyqW=dky
-            NLW=sqrt(NyqL**2+NyqW**2)
+            dkx=1./dd/real(m);dky=1./dd/real(n)
+            kcx=upperk/l        !corner wave-number for along-strike direction
+            kcy=upperk/w        !corner wave-number for down-dip direction
+            nyql=dkx;nyqw=dky
+            nlw=sqrt(nyql**2+nyqw**2)
 
-            !Preparing white noise spectrum
+            !preparing white noise spectrum
 
-            do i=1,M
-            do j=1,N
-            A(i,j)=ran2(idum)-.5d0
+            do i=1,m
+            do j=1,n
+            a(i,j)=ran2(idum)-.5d0
             enddo
             enddo
-            CALL rlft3(A,speq1,M,N,1,1)
+            call rlft3(a,speq1,m,n,1,1)
             !      speq1=exp(cmplx(0.,atan2(imag(speq1),real(speq1))))
-            do i=1,M/2
-            AC(i,:)=cmplx(A(2*i-1,:),A(2*i,:))
+            do i=1,m/2
+            ac(i,:)=cmplx(a(2*i-1,:),a(2*i,:))
             enddo
 
-            !Adding k^-2 by using the white noise spectrum
+            !adding k^-2 by using the white noise spectrum
 
-            do j=1,N
-            if(j<=N/2+1)then
+            do j=1,n
+            if(j<=n/2+1)then
                 ky=dky*real(j-1)
             else
-                ky=-dky*real(N-j+1)
+                ky=-dky*real(n-j+1)
             endif
-            do i=1,M/2+1
+            do i=1,m/2+1
             kx=dkx*real(i-1)
             krad=sqrt(kx**2+ky**2)
-            if(i<M/2+1.)then
-                if(krad>=NLW)then
-                    AC(i,j)=AC(i,j)/sqrt(1.+((kx/KCx)**2+(ky/KCy)**2)**1)
+            if(i<m/2+1.)then
+                if(krad>=nlw)then
+                    ac(i,j)=ac(i,j)/sqrt(1.+((kx/kcx)**2+(ky/kcy)**2)**1)
                 endif
-            elseif(krad>=NLW)then
-                speq1(j)=speq1(j)/sqrt(1.+((kx/KCx)**2+(ky/KCy)**2)**1)
+            elseif(krad>=nlw)then
+                speq1(j)=speq1(j)/sqrt(1.+((kx/kcx)**2+(ky/kcy)**2)**1)
             endif
             enddo
             enddo
 
-            !Back Fourier transform
+            !back fourier transform
 
-            CALL rlft3(AC,speq1,M,N,1,-1)
-            do i=1,M/2
-            A(2*i-1,:)=real(AC(i,:))/M/N*2.
-            A(2*i,:)=imag(AC(i,:))/M/N*2.
+            call rlft3(ac,speq1,m,n,1,-1)
+            do i=1,m/2
+            a(2*i-1,:)=real(ac(i,:))/m/n*2.
+            a(2*i,:)=imag(ac(i,:))/m/n*2.
             enddo
 
-            !Adding the mean rupture velocity
-            dum=sqrt(sum(A(:,:)**2)/M/N)
-            A=A/dum*vars
-            do j=1,N
+            !adding the mean rupture velocity
+            dum=sqrt(sum(a(:,:)**2)/m/n)
+            a=a/dum*vars
+            do j=1,n
             dum=(dd*(j-1)+dd/2.)
             if(dum>hvr(nlayers))then
-                A(:,j)=vr(nlayers)*(1.+A(:,j))
+                a(:,j)=vr(nlayers)*(1.+a(:,j))
             else
                 do k=1,nlayers
                 if(dum<hvr(k))then
-                    A(:,j)=vr(k)*(1.+A(:,j))
+                    a(:,j)=vr(k)*(1.+a(:,j))
                     exit
                 endif
                 enddo
             endif
             enddo
 
-            !Writing 2D rupture velocity distribution
-            OPEN(102,FILE='ruptvelgen.txt')
-            do j=1,int(W/dd)
-            do i=1,int(L/dd)
-            write(102,'(3E14.6)') real(i-1)*dd+.5*dd,real(j-1)*dd+.5*dd,A(i,j)
+            !writing 2d rupture velocity distribution
+            open(102,file='ruptvelgen.txt')
+            do j=1,int(w/dd)
+            do i=1,int(l/dd)
+            write(102,'(3e14.6)') real(i-1)*dd+.5*dd,real(j-1)*dd+.5*dd,a(i,j)
             enddo
             write(102,*)
             enddo
             close(102)
 
-            !Translating rupture velocities to rupture times
-            do j = 1,N
-            do i = 1,M
-            ipoint = i + (j-1) * M
-            hs(ipoint) = dd/A(i,j)
+            !translating rupture velocities to rupture times
+            do j = 1,n
+            do i = 1,m
+            ipoint = i + (j-1) * m
+            hs(ipoint) = dd/a(i,j)
             enddo
             enddo
             eps_init = 0.
-            nnx=M
-            nnz=N
+            nnx=m
+            nnz=n
             xg=epicx/dd+1.
             zg=epicy/dd+1.
 
-            iostat = Time_2d(hs, t_rupt, nnx, nnz, xg, zg, eps_init, 0)
+            iostat = time_2d(hs, t_rupt, nnx, nnz, xg, zg, eps_init, 0)
 
-            !PREINTERPOLOVANI DO VYSTUPNI DISKRETIZACE:
-            do j=1,N
+            !preinterpolovani do vystupni diskretizace:
+            do j=1,n
             yintrpl(j)=dd*(j-1)+dd/2.d0
             enddo
-            do i=1,M
-            do j=1,N
-            ipoint = i + (j-1) * M
+            do i=1,m
+            do j=1,n
+            ipoint = i + (j-1) * m
             tintrpl(j)=t_rupt(ipoint)
-            A(i,j)=t_rupt(ipoint)
+            a(i,j)=t_rupt(ipoint)
             enddo
-            CALL spline(yintrpl,tintrpl,N,1.d30,1.d30,yspln)
-            do j=1,NY
+            call spline(yintrpl,tintrpl,n,1.d30,1.d30,yspln)
+            do j=1,ny
             dum=(j-1)*dyout+dyout/2.d0
-            call splint(yintrpl,tintrpl,yspln,N,dum,D1(i,j))
+            call splint(yintrpl,tintrpl,yspln,n,dum,d1(i,j))
             enddo
             enddo
-            do i=1,M
-            xintrpl(i)=dd*(i-1)+dd/2.d0  !Schvalne dy, protoze se diskretizuje na ridsi siti a pak se interpoluje
+            do i=1,m
+            xintrpl(i)=dd*(i-1)+dd/2.d0  !schvalne dy, protoze se diskretizuje na ridsi siti a pak se interpoluje
             enddo
-            do j=1,NY
-            CALL spline(xintrpl,D1(:,j),M,1.d30,1.d30,xspln)
-            do i=1,NX
+            do j=1,ny
+            call spline(xintrpl,d1(:,j),m,1.d30,1.d30,xspln)
+            do i=1,nx
             dum=(i-1)*dxout+dxout/2.d0
-            call splint(xintrpl,D1(:,j),xspln,M,dum,D(i,j))
+            call splint(xintrpl,d1(:,j),xspln,m,dum,d(i,j))
             enddo
             enddo
-            OPEN(101,FILE='ruptimegen.txt')
-            do j=1,NY
-            do i=1,NX
-            write(101,'(3E14.6)') real(i-1)*dxout+.5*dxout,real(j-1)*dyout+.5*dyout,D(i,j)
+            open(101,file='ruptimegen.txt')
+            do j=1,ny
+            do i=1,nx
+            write(101,'(3e14.6)') real(i-1)*dxout+.5*dxout,real(j-1)*dyout+.5*dyout,d(i,j)
             enddo
             write(101,*)
             enddo
             close(101)
 
-            !Forward Fourier transform
+            !forward fourier transform
 
-            CALL rlft3(A,speq1,M,N,1,1)
-            do i=1,M/2
-            AC(i,:)=cmplx(A(2*i-1,:),A(2*i,:))
+            call rlft3(a,speq1,m,n,1,1)
+            do i=1,m/2
+            ac(i,:)=cmplx(a(2*i-1,:),a(2*i,:))
             enddo
-            AC=AC/real(M*N/2);speq1=speq1/real(M*N/2)
+            ac=ac/real(m*n/2);speq1=speq1/real(m*n/2)
 
-            !Writing amplitude spectrum along y:
-            !    OPEN(106,FILE='specy.txt')
-            !    do i=1,N/2+1
-            !      write(106,*)(i-1)*dky,abs(AC(1,i))
+            !writing amplitude spectrum along y:
+            !    open(106,file='specy.txt')
+            !    do i=1,n/2+1
+            !      write(106,*)(i-1)*dky,abs(ac(1,i))
             !    enddo
 
-            !Writing amplitude spectrum along x:
-            !    OPEN(105,FILE='specx.txt')
-            !    do i=1,M/2
-            !      write(105,*)(i-1)*dkx,abs(AC(i,1))
+            !writing amplitude spectrum along x:
+            !    open(105,file='specx.txt')
+            !    do i=1,m/2
+            !      write(105,*)(i-1)*dkx,abs(ac(i,1))
             !    enddo
-            !      write(105,*)(M/2)*dkx,abs(speq1(1))
+            !      write(105,*)(m/2)*dkx,abs(speq1(1))
 
-            END    
+            end    
 
 
-            ! Numerical recipes    
+            ! numerical recipes    
 
-            SUBROUTINE rlft3(data,speq,nn1,nn2,nn3,isign)
-                IMPLICIT NONE
-                INTEGER isign,nn1,nn2,nn3
-                COMPLEX*16 data(nn1/2,nn2,nn3),speq(nn2,nn3)
-                INTEGER i1,i2,i3,j1,j2,j3,nn(3)
-                DOUBLE PRECISION theta,wi,wpi,wpr,wr,wtemp
-                COMPLEX*16 c1,c2,h1,h2,w
+            subroutine rlft3(data,speq,nn1,nn2,nn3,isign)
+                implicit none
+                integer isign,nn1,nn2,nn3
+                complex*16 data(nn1/2,nn2,nn3),speq(nn2,nn3)
+                integer i1,i2,i3,j1,j2,j3,nn(3)
+                double precision theta,wi,wpi,wpr,wr,wtemp
+                complex*16 c1,c2,h1,h2,w
                 c1=dcmplx(0.5d0,0.0d0)
                 c2=dcmplx(0.0d0,-0.5d0*isign)
                 theta=6.28318530717959d0/dble(isign*nn1)
@@ -712,16 +716,16 @@ FUNCTION meanVR(x,y,r)   !calculate mean rupture velocity (just slowness mean ov
                     call fourn(data,nn,3,isign)
                 endif
                 return
-                END
+                end
 
 
-                SUBROUTINE fourn(data,nn,ndim,isign)
-                    IMPLICIT NONE
-                    INTEGER isign,ndim,nn(ndim)
-                    DOUBLE PRECISION data(*)
-                    INTEGER i1,i2,i2rev,i3,i3rev,ibit,idim,ifp1,ifp2,ip1,ip2,ip3,k1,k2,n,nprev,nrem,ntot
-                    DOUBLE PRECISION tempi,tempr
-                    DOUBLE PRECISION theta,wi,wpi,wpr,wr,wtemp
+                subroutine fourn(data,nn,ndim,isign)
+                    implicit none
+                    integer isign,ndim,nn(ndim)
+                    double precision data(*)
+                    integer i1,i2,i2rev,i3,i3rev,ibit,idim,ifp1,ifp2,ip1,ip2,ip3,k1,k2,n,nprev,nrem,ntot
+                    double precision tempi,tempr
+                    double precision theta,wi,wpi,wpr,wr,wtemp
                     ntot=1
                     do 11 idim=1,ndim
                     ntot=ntot*nn(idim)
@@ -787,15 +791,15 @@ FUNCTION meanVR(x,y,r)   !calculate mean rupture velocity (just slowness mean ov
                     nprev=n*nprev
                     18    continue
                     return
-                    END
+                    end
 
 
-                    SUBROUTINE spline(x,y,n,yp1,ypn,y2)
-                        INTEGER n,NMAX
-                        DOUBLE PRECISION yp1,ypn,x(n),y(n),y2(n)
-                        PARAMETER (NMAX=50000)
-                        INTEGER i,k
-                        DOUBLE PRECISION p,qn,sig,un,u(NMAX)
+                    subroutine spline(x,y,n,yp1,ypn,y2)
+                        integer n,nmax
+                        double precision yp1,ypn,x(n),y(n),y2(n)
+                        parameter (nmax=50000)
+                        integer i,k
+                        double precision p,qn,sig,un,u(nmax)
                         if (yp1.gt..99d30) then
                             y2(1)=0.d0
                             u(1)=0.d0
@@ -821,14 +825,14 @@ FUNCTION meanVR(x,y,r)   !calculate mean rupture velocity (just slowness mean ov
                         y2(k)=y2(k)*y2(k+1)+u(k)
                         12    continue
                         return
-                        END
+                        end
 
 
-                        SUBROUTINE splint(xa,ya,y2a,n,x,y)
-                            INTEGER n
-                            DOUBLE PRECISION x,y,xa(n),y2a(n),ya(n)
-                            INTEGER k,khi,klo
-                            DOUBLE PRECISION a,b,h
+                        subroutine splint(xa,ya,y2a,n,x,y)
+                            integer n
+                            double precision x,y,xa(n),y2a(n),ya(n)
+                            integer k,khi,klo
+                            double precision a,b,h
                             klo=1
                             khi=n
                             1     if (khi-klo.gt.1) then
@@ -846,39 +850,39 @@ FUNCTION meanVR(x,y,r)   !calculate mean rupture velocity (just slowness mean ov
                             b=(x-xa(klo))/h
                             y=a*ya(klo)+b*ya(khi)+((a**3-a)*y2a(klo)+(b**3-b)*y2a(khi))*(h**2)/6.d0
                             return
-                            END
+                            end
 
 
-                            FUNCTION ran2(idum)
-                                INTEGER idum,IM1,IM2,IMM1,IA1,IA2,IQ1,IQ2,IR1,IR2,NTAB,NDIV
-                                DOUBLE PRECISION AM,EPS,RNMX
-                                REAL ran2
-                                PARAMETER (IM1=2147483563,IM2=2147483399,AM=1.d0/IM1,IMM1=IM1-1,IA1=40014,IA2=40692,IQ1=53668,&
-                                    IQ2=52774,IR1=12211,IR2=3791,NTAB=32,NDIV=1+IMM1/NTAB,EPS=3.d-16,RNMX=1.d0-EPS)
-                                INTEGER idum2,j,k,iv(NTAB),iy
-                                SAVE iv,iy,idum2
-                                DATA idum2/123456789/, iv/NTAB*0/, iy/0/
+                            function ran2(idum)
+                                integer idum,im1,im2,imm1,ia1,ia2,iq1,iq2,ir1,ir2,ntab,ndiv
+                                double precision am,eps,rnmx
+                                real ran2
+                                parameter (im1=2147483563,im2=2147483399,am=1.d0/im1,imm1=im1-1,ia1=40014,ia2=40692,iq1=53668,&
+                                    iq2=52774,ir1=12211,ir2=3791,ntab=32,ndiv=1+imm1/ntab,eps=3.d-16,rnmx=1.d0-eps)
+                                integer idum2,j,k,iv(ntab),iy
+                                save iv,iy,idum2
+                                data idum2/123456789/, iv/ntab*0/, iy/0/
                                 if (idum.le.0) then
                                     idum=max(-idum,1)
                                     idum2=idum
-                                    do 11 j=NTAB+8,1,-1
-                                    k=idum/IQ1
-                                    idum=IA1*(idum-k*IQ1)-k*IR1
-                                    if (idum.lt.0) idum=idum+IM1
-                                    if (j.le.NTAB) iv(j)=idum
+                                    do 11 j=ntab+8,1,-1
+                                    k=idum/iq1
+                                    idum=ia1*(idum-k*iq1)-k*ir1
+                                    if (idum.lt.0) idum=idum+im1
+                                    if (j.le.ntab) iv(j)=idum
                                     11      continue
                                     iy=iv(1)
                                 endif
-                                k=idum/IQ1
-                                idum=IA1*(idum-k*IQ1)-k*IR1
-                                if (idum.lt.0) idum=idum+IM1
-                                k=idum2/IQ2
-                                idum2=IA2*(idum2-k*IQ2)-k*IR2
-                                if (idum2.lt.0) idum2=idum2+IM2
-                                j=1+iy/NDIV
+                                k=idum/iq1
+                                idum=ia1*(idum-k*iq1)-k*ir1
+                                if (idum.lt.0) idum=idum+im1
+                                k=idum2/iq2
+                                idum2=ia2*(idum2-k*iq2)-k*ir2
+                                if (idum2.lt.0) idum2=idum2+im2
+                                j=1+iy/ndiv
                                 iy=iv(j)-idum2
                                 iv(j)=idum
-                                if(iy.lt.1)iy=iy+IMM1
-                                ran2=min(AM*iy,RNMX)
+                                if(iy.lt.1)iy=iy+imm1
+                                ran2=min(am*iy,rnmx)
                                 return
-                            END FUNCTION
+                            end function

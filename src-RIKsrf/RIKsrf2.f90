@@ -32,7 +32,7 @@ PROGRAM KKstf
     REAL,ALLOCATABLE:: pdf2D(:,:),cpdf2D(:,:)
     REAL pdfDL,pdfDW,pdfGaussL,pdfGaussW,pdfGaussS
     REAL,ALLOCATABLE:: ruptimegen(:)
-    CHARACTER*256 filename,inputfile
+    CHARACTER(256):: filename,inputfile
     INTEGER ml(2),pdfOption,fileNL,fileNW
     !SUBSOURCE PARAMETERS:
     INTEGER SRoption,SUBmax,SUBmin
@@ -50,7 +50,6 @@ PROGRAM KKstf
     INTEGER i,j,k,m,hits
     read(5,*) inputfile
     open(101,FILE=trim(inputfile))
-    write(6,*) "Reading"
     read(101,*)
     read(101,*)LF, WF
     read(101,*)
@@ -445,6 +444,7 @@ FUNCTION meanVR(x,y,r)   !calculate mean rupture velocity (just slowness mean ov
         read(10,*)
         do i=1,ndepth
         read(10,*)depth(i),vp(i),vs(i),rho(i)
+        write(*,*)depth(i),vp(i),vs(i),rho(i)
         enddo
         close(10)
         END
