@@ -92,15 +92,12 @@ def vecteurs(aD, aS, aR, output):
 
     output.attrs['Vnormal'] = Vnormal
     output.attrs['Vslip'] = Vslip
-    print "Vector normal to the fault : ", Vnormal
-    print "Vector of the slip         : ", Vslip
 
     ###
     M = np.zeros((3, 3))
     for i in np.arange(3):
         for j in np.arange(3):
             M[i, j] = Vnormal[i] * Vslip[j] + Vnormal[j] * Vslip[i]
-    print 'Moment matrix of SEM3D code: '
     print M[0, :]
     print M[1, :]
     print M[2, :]

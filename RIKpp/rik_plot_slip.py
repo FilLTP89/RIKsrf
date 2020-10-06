@@ -1,29 +1,38 @@
 # -*- coding: utf-8 -*-
-#!/usr/bin/env python
+#!/usr/bin/env python3
 '''
 Main file to plot slip patches obtained with RIKsrf2
+
+Example:
+    
+    python3 rik_plot_slip.py --nL 140 --nW 80 --sf /home/filippo/Data/Filippo/aeolus/ModeleVitessesEDF/slipdistribution.dat --hL 5.0 --hW 3.0 -L 7 -W 4
 '''
 #=======================================================================
 # Required modules
 #=======================================================================
-# System/OS
 import os
 import sys
-sys.path.append("/home/filippo/Data/Filippo/RIKsrf/RIKpp")
-from rik_pp import *
+import argparse
+import os.path as osp
+from rik_pp_lib import *
+#=======================================================================
+# General informations
+#=======================================================================
+__author__ = "Filippo Gatti"
+__copyright__ = "Copyright 2020, CentraleSupélec (MSSMat UMR CNRS 8579)"
+__credits__ = ["Filippo Gatti"]
+__license__ = "GPL"
+__version__ = "1.0.1"
+__maintainer__ = "Filippo Gatti"
+__email__ = "filippo.gatti@centralesupelec.fr"
+__status__ = "Beta"
 
 if __name__ == '__main__':
-
+    opt = start_rik()
+    globals().update(opt)
     # Input data
-    Lgrid   = 294
-    Wgrid   = 213
-    NSR = Wgrid*Lgrid
-
-    filename = 'slipdistribution.dat'
-    x, y, slip = readfile (NSR, filename)
+    NSR = nW*nL
+    x, y, slip = readfileslip(NSR, sf)
 
     # Attention a l'ordre de W et L #
-    plotslip (Wgrid,Lgrid,slip,False,'xxx.png',24.55,7.7,
-            [0.0,29.4],[0.0,21.25])
-
-    print '*** Done ***'
+    plotslip (nW,nL,L,W,slip,True,fg,hL,hW)
