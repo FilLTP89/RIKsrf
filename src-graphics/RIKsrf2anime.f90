@@ -65,9 +65,11 @@
         do j=1,NW(kk)
           tfrom=int(dble((i-1)*NT)/dble(NS)+1)
           tto=tfrom+1
-          write(202,'(1000E13.5)')(sum(srf(tfrom:tto,k,j))/dble(tto-tfrom+1),k=1,NL(kk)),sum(srf(tfrom:tto,NL(kk),j))/dble(tto-tfrom+1)
+          write(202,'(1000E13.5)')(sum(srf(tfrom:tto,k,j))/dble(tto-tfrom+1),k=1,NL(kk)), &
+          sum(srf(tfrom:tto,NL(kk),j))/dble(tto-tfrom+1)
         enddo
-        write(202,'(1000E13.5)')(sum(srf(tfrom:tto,k,NW(kk)))/dble(tto-tfrom+1),k=1,NL(kk)),sum(srf(tfrom:tto,NL(kk),NW(kk)))/dble(tto-tfrom+1)
+        write(202,'(1000E13.5)')(sum(srf(tfrom:tto,k,NW(kk)))/dble(tto-tfrom+1),k=1,NL(kk)),&
+        sum(srf(tfrom:tto,NL(kk),NW(kk)))/dble(tto-tfrom+1)
         write(202,*);write(202,*)
         dum=maxval(sum(srf(tfrom:tto,1:NL(kk),1:NW(kk)),dim=1))/dble(tto-tfrom+1)
         if(dum>maxik)maxik=dum
